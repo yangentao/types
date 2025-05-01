@@ -16,7 +16,7 @@ plugins {
 
 group = "io.github.yangentao"
 
-version = "1.0.2"
+version = "1.0.3"
 val artifactName = "types"
 val githubLib = "types"
 val descLib = "Kotlin reflect and types."
