@@ -1,7 +1,6 @@
 package io.github.yangentao.types
 
 import java.text.DecimalFormat
-
 import kotlin.math.ceil
 
 const val KB: Int = 1024
@@ -10,6 +9,13 @@ const val GB: Int = 1024 * 1024 * 1024
 
 val Int.MB: Int get() = this * 1024 * 1024
 val Long.MB: Long get() = this * 1024 * 1024
+
+// limit value in [a,b]
+fun <T> T.clamp(a: T, b: T): T  where  T : Number, T : Comparable<Number>{
+    if (this < a) return a
+    if (this > b) return b
+    return this
+}
 
 val Double.ceilInt: Int get() = ceil(this).toInt()
 

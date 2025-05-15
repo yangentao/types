@@ -31,8 +31,8 @@ dependencies {
     testImplementation(kotlin("test"))
     implementation(kotlin("reflect"))
     implementation(kotlin("stdlib"))
-    api("io.github.yangentao:anno:[1.0.2,)")
-    api("io.github.yangentao:kson:[1.0.2,)")
+    api("io.github.yangentao:anno:[1.1.0,)")
+    api("io.github.yangentao:kson:[1.1.0,)")
 }
 
 tasks.test {
