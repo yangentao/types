@@ -56,7 +56,7 @@ abstract class ValueDecoder() {
     abstract fun decode(targetInfo: TargetInfo, value: Any): Any?
 
     companion object {
-        private val decoders: ArrayList<ValueDecoder> = arrayListOf(NumberDecoder, StringDecoder, BoolDecoder, CollectionDecoder, DateDecoder)
+        private val decoders: ArrayList<ValueDecoder> = arrayListOf(NumberDecoder, StringDecoder, BoolDecoder, CollectionDecoder, DateDecoder, ArrayDecoder)
 
         fun push(decoder: ValueDecoder) {
             if (decoders.contains(decoder)) return
@@ -373,6 +373,55 @@ private object DateDecoder : ValueDecoder() {
             LocalDateTime::class -> dt.localDateTime
             else -> error("NOT support type: ${targetInfo.clazz}")
         }
+    }
+}
+
+object ArrayDecoder : ValueDecoder() {
+    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
+        return target.java.isArray
+    }
+
+    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
+        val eleCls = targetInfo.clazz.java.componentType
+        val ls: List<Any?> = prepareItems(value, targetInfo.findAnnotation()).toList()
+        val ar = java.lang.reflect.Array.newInstance(eleCls, ls.size)
+        for (i in ls.indices) {
+            val v = ValueDecoder.decodeValue(eleCls.kotlin.targetInfo, ls[i])
+            java.lang.reflect.Array.set(ar, i, v)
+        }
+        return ar
+    }
+
+}
+
+private fun prepareItems(value: Any, sepChar: SepChar? = null): Iterable<Any?> {
+    return when (value) {
+        is Set<*> -> value
+        is List<*> -> value
+        is Array<*> -> value.toList()
+        is java.sql.Array -> {
+            val ls = ArrayList<Any>()
+            value.resultSet.use { rs ->
+                while (rs.next()) {
+                    ls += rs.getObject(2)
+                }
+            }
+            value.free()
+            ls
+        }
+
+        is String -> value.split(sepChar?.list ?: ',').map { it.trim() }
+
+        is ByteArray -> value.toList()
+        is ShortArray -> value.toList()
+        is IntArray -> value.toList()
+        is LongArray -> value.toList()
+        is FloatArray -> value.toList()
+        is DoubleArray -> value.toList()
+        is BooleanArray -> value.toList()
+        is CharArray -> value.toList()
+
+        else -> error("Type  dismatch $value ")
     }
 }
 
