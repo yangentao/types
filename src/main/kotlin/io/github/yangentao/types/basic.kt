@@ -13,6 +13,7 @@ import kotlin.reflect.KClass
 
 typealias Predicater<T> = (T) -> Boolean
 
+
 val javaVersionInt: Int = System.getProperty("java.specification.version")?.toIntOrNull() ?: 0
 
 @Suppress("Since15")
@@ -99,7 +100,6 @@ fun File.ensureDirs(): File {
     }
     return this
 }
-
 
 fun KClass<*>.resourceBytes(name: String): ByteArray? {
     val i = this.java.classLoader.getResourceAsStream(name) ?: return null

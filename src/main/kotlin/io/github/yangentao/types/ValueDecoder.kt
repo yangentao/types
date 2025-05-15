@@ -19,23 +19,21 @@ import kotlin.reflect.KType
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.isSubclassOf
 
-fun KProperty<*>.decodeValue2(source: Any?): Any? {
+fun KProperty<*>.decodeValue(source: Any?): Any? {
     val v = ValueDecoder.decodeValue(this.targetInfo, source)
     if (v != null || this.returnType.isMarkedNullable) return v
     error("null value, $this")
 }
 
-fun KParameter.decodeValue2(source: Any?): Any? {
+fun KParameter.decodeValue(source: Any?): Any? {
     val v = ValueDecoder.decodeValue(this.targetInfo, source)
     if (v != null || this.type.isMarkedNullable || this.isOptional) return v
     error("null value, $this")
 }
 
-fun KClass<*>.decodeValue2(source: Any?): Any? {
+fun KClass<*>.decodeValue(source: Any?): Any? {
     return ValueDecoder.decodeValue(this.targetInfo, source)
 }
-
-private typealias SQLArray = java.sql.Array
 
 class TargetInfo(val clazz: KClass<*>, val annotations: List<Annotation> = emptyList(), val typeArguments: List<KType> = emptyList()) {
     val hasArguments: Boolean get() = typeArguments.isNotEmpty()
@@ -338,17 +336,6 @@ private object MapDecoder : ValueDecoder() {
         return valueMap
     }
 
-}
-
-private fun SQLArray.listAny(freeMe: Boolean = true): ArrayList<Any?> {
-    val ls = ArrayList<Any?>()
-    this.resultSet.use {
-        while (it.next()) {
-            ls.add(it.getObject(2))
-        }
-    }
-    if (freeMe) this.free()
-    return ls
 }
 
 private fun prepareItems(value: Any, sepChar: SepChar? = null): Iterable<Any?> {
