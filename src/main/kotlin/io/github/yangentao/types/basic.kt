@@ -1,6 +1,7 @@
 package io.github.yangentao.types
 
 import io.github.yangentao.anno.DatePattern
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.text.SimpleDateFormat
@@ -8,6 +9,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
+import kotlin.reflect.KClass
 
 typealias Predicater<T> = (T) -> Boolean
 
@@ -15,6 +17,8 @@ val javaVersionInt: Int = System.getProperty("java.specification.version")?.toIn
 
 @Suppress("Since15")
 val Thread.tid: Long get() = if (javaVersionInt >= 19) this.threadId() else this.id
+
+val Thread.isMain: Boolean get() = this.tid == 1L
 
 @Suppress("RecursivePropertyAccessor")
 val Throwable.rootError: Throwable
@@ -28,6 +32,8 @@ fun printX(vararg vs: Any?) {
     }
     println(s)
 }
+
+data class LabelValue<T : Any>(val label: String, val value: T)
 
 inline fun <R> safe(block: () -> R): R? {
     try {
@@ -72,4 +78,39 @@ inline fun <reified T : Comparable<T>> T.greatEqual(v: T): T {
 inline fun <reified T : Comparable<T>> T.lessEqual(v: T): T {
     if (this > v) return v
     return this
+}
+
+val Int.fileSize: String get() = this.toLong().fileSize
+
+val Long.fileSize: String
+    get() {
+        return when {
+            this > GB -> (this * 1.0 / GB).maxFraction(2) + "G"
+            this > MB -> (this * 1.0 / MB).maxFraction(2) + "M"
+            this > KB -> (this * 1.0 / KB).maxFraction(2) + "K"
+            else -> this.toString() + "字节"
+        }
+    }
+val UUID.hexText: String get() = String.format("%x%x", this.mostSignificantBits, this.leastSignificantBits)
+
+fun File.ensureDirs(): File {
+    if (!this.exists()) {
+        this.mkdirs()
+    }
+    return this
+}
+
+
+fun KClass<*>.resourceBytes(name: String): ByteArray? {
+    val i = this.java.classLoader.getResourceAsStream(name) ?: return null
+    i.use {
+        return it.readBytes()
+    }
+}
+
+fun KClass<*>.resourceText(name: String): String? {
+    val i = this.java.classLoader.getResourceAsStream(name) ?: return null
+    i.use {
+        return it.readBytes().toString(Charsets.UTF_8)
+    }
 }

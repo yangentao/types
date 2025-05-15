@@ -70,3 +70,74 @@ fun <T : Any> Stack<T>.popX(): T? {
     if (empty()) return null
     return pop()
 }
+
+inline fun <K, V> MutableMap<K, V>.getOrPutX(key: K, defaultValue: () -> V?): V? {
+    val value = get(key)
+    return if (value == null) {
+        val answer = defaultValue()
+        if (answer != null) put(key, answer)
+        answer
+    } else {
+        value
+    }
+}
+
+class LongCache<T : Any>(private val finder: (Long) -> T?) {
+    private val map = HashMap<Long, T?>()
+    private val nullSet = HashSet<Long>()
+
+    fun get(key: Long): T? {
+        if (nullSet.contains(key)) return null
+        return map.getOrPutX(key) {
+            val v = finder(key)
+            if (v == null) nullSet.add(key)
+            v
+        }
+    }
+}
+
+class ItemCache<T : Any>(private val finder: (Int) -> T?) {
+    private val map = HashMap<Int, T?>()
+    private val nullSet = HashSet<Int>()
+
+    fun get(key: Int): T? {
+        if (nullSet.contains(key)) return null
+        return map.getOrPutX(key) {
+            val v = finder(key)
+            if (v == null) nullSet.add(key)
+            v
+        }
+    }
+}
+typealias LongStringCache = ValueCache<Long, String>
+
+class ValueCache<K : Any, V : Any>(private val finder: (K) -> V?) {
+    private val map = HashMap<K, V>()
+    private val nullSet = HashSet<K>()
+
+    operator fun get(key: K): V? {
+        if (nullSet.contains(key)) return null
+        return map.getOrPutX(key) {
+            val v = finder(key)
+            if (v == null) nullSet.add(key)
+            v
+        }
+    }
+}
+
+class MapCache<K : Any, V : Any>(private val finder: (K) -> V?) {
+    private val map = HashMap<K, V>()
+    private val nullSet = HashSet<K>()
+
+    fun get(key: K): V? {
+        if (nullSet.contains(key)) return null
+        if (map.containsKey(key)) return map[key]
+        val v = finder(key)
+        if (v == null) {
+            nullSet.add(key)
+        } else {
+            map[key] = v
+        }
+        return v
+    }
+}

@@ -1,4 +1,3 @@
-@file:Suppress("unused")
 
 package io.github.yangentao.types
 
@@ -49,19 +48,7 @@ inline fun <reified T : Any> KClass<T>.decode(value: Any?): T? {
     return this.decodeValue(value) as? T
 }
 
-object ValueDecodeManager {
-    fun push(d: TypeDecoder) {
-        decodeTypeMap[d.toClass] = d
-    }
 
-    fun pushMatch(d: MatchTypeDecoder) {
-        decodeMatchList.add(0, d)
-    }
-
-    fun decodeValueTo(value: Any?, toClass: KClass<*>, annoList: List<Annotation> = emptyList(), genericArgs: List<KTypeProjection> = emptyList()): Any? {
-        return decodeValueToType(value, toClass, annoList, genericArgs)
-    }
-}
 
 fun decodeValueToType(value: Any?, toClass: KClass<*>, annoList: List<Annotation> = emptyList(), genericArgs: List<KTypeProjection> = emptyList()): Any? {
     if (value == null) {

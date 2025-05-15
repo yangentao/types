@@ -1,9 +1,6 @@
 package io.github.yangentao.types
 
-
 import io.github.yangentao.anno.*
-import io.github.yangentao.types.DateTime
-import io.github.yangentao.types.format
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -76,6 +73,10 @@ abstract class ValueDecoder() {
                 val nullAnno: NullValue? = target.annotations.firstTyped()
                 if (nullAnno != null) {
                     return decodeValue(target, nullAnno.value)
+                }
+                val f: String? = target.findAnnotation<ModelField>()?.defaultValue
+                if (f != null) {
+                    return decodeValue(target, f)
                 }
                 return null
             }
