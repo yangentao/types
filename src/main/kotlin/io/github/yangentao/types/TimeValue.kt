@@ -1,6 +1,5 @@
 package io.github.yangentao.types
 
-
 import java.util.concurrent.TimeUnit
 
 data class TimeValue(val unit: TimeUnit, val value: Long) {
@@ -13,6 +12,12 @@ data class TimeValue(val unit: TimeUnit, val value: Long) {
     fun toTimeUnit(newTimeUnit: TimeUnit): TimeValue {
         return TimeValue(newTimeUnit, newTimeUnit.convert(value, unit))
     }
+
+    val inMillSeconds: Long get() = TimeUnit.MILLISECONDS.convert(value, unit)
+    val inSeconds: Long get() = TimeUnit.SECONDS.convert(value, unit)
+    val inMinutes: Long get() = TimeUnit.MINUTES.convert(value, unit)
+    val inHours: Long get() = TimeUnit.HOURS.convert(value, unit)
+    val inDays: Long get() = TimeUnit.DAYS.convert(value, unit)
 
     companion object {
         fun milliseconds(value: Long): TimeValue {
