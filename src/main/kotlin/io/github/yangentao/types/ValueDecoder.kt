@@ -1,6 +1,11 @@
+@file:Suppress("RemoveRedundantQualifierName")
+
 package io.github.yangentao.types
 
 import io.github.yangentao.anno.*
+import io.github.yangentao.kson.KsonArray
+import io.github.yangentao.kson.KsonNum
+import io.github.yangentao.kson.KsonObject
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -11,6 +16,7 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty
 import kotlin.reflect.KType
+import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.isSubclassOf
 
 fun KProperty<*>.decodeValue2(source: Any?): Any? {
@@ -31,11 +37,11 @@ fun KClass<*>.decodeValue2(source: Any?): Any? {
 
 private typealias SQLArray = java.sql.Array
 
-class TargetInfo(val clazz: KClass<*>, val annotations: List<Annotation>, val typeArguments: List<KType>) {
+class TargetInfo(val clazz: KClass<*>, val annotations: List<Annotation> = emptyList(), val typeArguments: List<KType> = emptyList()) {
     val hasArguments: Boolean get() = typeArguments.isNotEmpty()
 
-    val firstArg: KClass<*> get() = typeArguments.first().classifier as KClass<*>
-    val secondArg: KClass<*> get() = typeArguments.second().classifier as KClass<*>
+    val firstArg: KClass<*>? get() = typeArguments.firstOrNull()?.classifier as KClass<*>
+    val secondArg: KClass<*>? get() = typeArguments.secondOrNull()?.classifier as KClass<*>
 
     inline fun <reified T : Annotation> findAnnotation(): T? {
         return annotations.firstOrNull { it is T } as? T
@@ -56,7 +62,11 @@ abstract class ValueDecoder() {
     abstract fun decode(targetInfo: TargetInfo, value: Any): Any?
 
     companion object {
-        private val decoders: ArrayList<ValueDecoder> = arrayListOf(NumberDecoder, StringDecoder, BoolDecoder, CollectionDecoder, DateDecoder, ArrayDecoder)
+        private val decoders: ArrayList<ValueDecoder> = arrayListOf(
+            NumberDecoder, StringDecoder, BoolDecoder,
+            ListDecoder, SetDecoder, MapDecoder,
+            DateDecoder, ArrayDecoder
+        )
 
         fun push(decoder: ValueDecoder) {
             if (decoders.contains(decoder)) return
@@ -81,10 +91,8 @@ abstract class ValueDecoder() {
                 return null
             }
             val sourceClass = source::class
-            if (!CollectionDecoder.accept(target.clazz, sourceClass)) {
-                if (sourceClass == target.clazz) return source
-                if (sourceClass.isSubclassOf(target.clazz)) return source
-            }
+            if (sourceClass == target.clazz) return source
+//            if (sourceClass.isSubclassOf(target.clazz)) return source
 
             for (d in decoders) {
                 if (d.accept(target.clazz, sourceClass)) {
@@ -104,8 +112,8 @@ private object StringDecoder : ValueDecoder() {
     override fun decode(targetInfo: TargetInfo, value: Any): Any? {
         when (value) {
             is Number -> {
-                val nf: NumberPattern? = targetInfo.annotations.firstTyped()
-                val sf: StringFormat? = targetInfo.annotations.firstTyped()
+                val nf: NumberPattern? = targetInfo.findAnnotation()
+                val sf: StringFormat? = targetInfo.findAnnotation()
                 if (nf != null) {
                     return value.format(nf.pattern)
                 } else if (sf != null) {
@@ -148,10 +156,7 @@ private object StringDecoder : ValueDecoder() {
 
 private object NumberDecoder : ValueDecoder() {
     override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
-        if (!target.isSubclassOf(Number::class)) return false
-        if (source == String::class || source.isSubclassOf(Number::class)) return true
-        if (source.isSubclassOf(java.util.Date::class)) return true
-        return false
+        return target.isSubclassOf(Number::class)
     }
 
     override fun decode(targetInfo: TargetInfo, value: Any): Number? {
@@ -162,13 +167,14 @@ private object NumberDecoder : ValueDecoder() {
             is LocalTime -> return DateTime.from(value).timeInMillis
             is LocalDateTime -> return DateTime.from(value).timeInMillis
         }
+        val numValue: Any = if (value is KsonNum) value.data else value
         return when (targetInfo.clazz) {
-            Byte::class -> if (value is String) value.toByte() else (value as Number).toByte()
-            Short::class -> if (value is String) value.toShort() else (value as Number).toShort()
-            Int::class -> if (value is String) value.toInt() else (value as Number).toInt()
-            Long::class -> if (value is String) value.toLong() else (value as Number).toLong()
-            Float::class -> if (value is String) value.toFloat() else (value as Number).toFloat()
-            Double::class -> if (value is String) value.toDouble() else (value as Number).toDouble()
+            Byte::class -> if (numValue is String) numValue.toByte() else (numValue as Number).toByte()
+            Short::class -> if (numValue is String) numValue.toShort() else (numValue as Number).toShort()
+            Int::class -> if (numValue is String) numValue.toInt() else (numValue as Number).toInt()
+            Long::class -> if (numValue is String) numValue.toLong() else (numValue as Number).toLong()
+            Float::class -> if (numValue is String) numValue.toFloat() else (numValue as Number).toFloat()
+            Double::class -> if (numValue is String) numValue.toDouble() else (numValue as Number).toDouble()
             else -> error("NOT support type: ${targetInfo.clazz}")
         }
 
@@ -187,145 +193,6 @@ private object BoolDecoder : ValueDecoder() {
             else -> error("NOT support type: ${targetInfo.clazz}")
         }
     }
-}
-
-private object CollectionDecoder : ValueDecoder() {
-    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
-        return target.isSubclassOf(Collection::class) || target.isSubclassOf(Map::class)
-    }
-
-    private fun decodeList(targetInfo: TargetInfo, value: Any): Any? {
-        when (value) {
-            is SQLArray -> {
-                val ls = ArrayList<Any?>()
-                value.resultSet.use {
-                    while (it.next()) {
-                        ls.add(it.getObject(2))
-                    }
-                }
-                value.free()
-                return ls
-            }
-
-            is Iterable<*> -> {
-                if (targetInfo.hasArguments) {
-                    val ls = ArrayList<Any?>()
-                    val ti = TargetInfo(targetInfo.firstArg, targetInfo.annotations, emptyList())
-                    for (v in value) {
-                        val vv = ValueDecoder.decodeValue(ti, v)
-                        ls.add(vv)
-                    }
-                    return ls
-                } else {
-                    if (value::class.isSubclassOf(targetInfo.clazz)) {
-                        return value
-                    } else {
-                        val ls = ArrayList<Any?>()
-                        ls.addAll(value)
-                        return ls
-                    }
-                }
-
-            }
-
-            is String -> {
-                val sc: SepChar? = targetInfo.findAnnotation()
-                val ch: Char = sc?.list ?: ','
-                val sls = value.split(ch)
-                return this.decodeList(targetInfo, sls)
-            }
-
-            else -> error("Not support type: ${targetInfo.clazz}, $value")
-        }
-    }
-
-    private fun decodeSet(targetInfo: TargetInfo, value: Any): Any? {
-        when (value) {
-            is Iterable<*> -> {
-
-                if (targetInfo.hasArguments) {
-                    val aSet = HashSet<Any?>()
-                    val ti = TargetInfo(targetInfo.firstArg, targetInfo.annotations, emptyList())
-                    for (v in value) {
-                        val vv = ValueDecoder.decodeValue(ti, v)
-                        aSet.add(vv)
-                    }
-                    return aSet
-                } else {
-                    if (value::class.isSubclassOf(targetInfo.clazz)) {
-                        return value
-                    } else {
-                        val aSet = HashSet<Any?>()
-                        aSet.addAll(value)
-                        return aSet
-                    }
-                }
-            }
-
-            is String -> {
-                val sc: SepChar? = targetInfo.findAnnotation()
-                val ch: Char = sc?.list ?: ','
-                val sls = value.split(ch)
-                return this.decodeSet(targetInfo, sls)
-            }
-
-            else -> error("Not support type: ${targetInfo.clazz}, $value")
-        }
-    }
-
-    private fun decodeMap(targetInfo: TargetInfo, value: Any): Any? {
-        when (value) {
-            is Map<*, *> -> {
-
-                if (targetInfo.typeArguments.isNotEmpty()) {
-                    val aMap = HashMap<Any, Any?>()
-                    val tKey = TargetInfo(targetInfo.firstArg, targetInfo.annotations, emptyList())
-                    val tVal = TargetInfo(targetInfo.secondArg, targetInfo.annotations, emptyList())
-                    for (e in value) {
-                        val vK = ValueDecoder.decodeValue(tKey, e.key)
-                        val vv = ValueDecoder.decodeValue(tVal, e.value)
-                        if (vK != null) aMap.put(vK, vv)
-                    }
-                    return aMap
-                } else {
-                    if (value::class.isSubclassOf(targetInfo.clazz)) {
-                        return value
-                    }
-                    val aMap = HashMap<Any, Any?>()
-                    for (e in value) {
-                        aMap.put(e.key!!, e.value)
-                    }
-                    return aMap
-                }
-
-            }
-
-            is String -> {
-                val sc: SepChar = targetInfo.findAnnotation() ?: SepChar()
-                val aMap = HashMap<String, String?>()
-                val sls = value.split(sc.list)
-                for (s in sls) {
-                    val pair = s.split(sc.map)
-                    if (pair.size == 2) {
-                        aMap.put(pair.first(), pair.second())
-                    }
-                }
-                return decodeMap(targetInfo, aMap)
-            }
-
-            else -> error("Not support type: ${targetInfo.clazz}, $value")
-        }
-    }
-
-    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
-        return when (targetInfo.clazz) {
-            List::class, ArrayList::class -> decodeList(targetInfo, value)
-            Set::class, HashSet::class -> decodeSet(targetInfo, value)
-            Map::class, HashMap::class -> decodeMap(targetInfo, value)
-            else -> error("Not support type: ${targetInfo.clazz}, $value ")
-        }
-    }
-
 }
 
 private object DateDecoder : ValueDecoder() {
@@ -386,7 +253,7 @@ object ArrayDecoder : ValueDecoder() {
         val ls: List<Any?> = prepareItems(value, targetInfo.findAnnotation()).toList()
         val ar = java.lang.reflect.Array.newInstance(eleCls, ls.size)
         for (i in ls.indices) {
-            val v = ValueDecoder.decodeValue(eleCls.kotlin.targetInfo, ls[i])
+            val v = decodeValue(eleCls.kotlin.targetInfo, ls[i])
             java.lang.reflect.Array.set(ar, i, v)
         }
         return ar
@@ -394,21 +261,102 @@ object ArrayDecoder : ValueDecoder() {
 
 }
 
+private object ListDecoder : ValueDecoder() {
+    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
+        return target.isSubclassOf(List::class)
+    }
+
+    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
+        val eleType: KClass<*> = targetInfo.firstArg ?: return null
+        val ls: Iterable<Any?> = prepareItems(value, targetInfo.findAnnotation())
+        val valueList: List<Any?> = ls.map { decodeValue(TargetInfo(eleType, targetInfo.annotations, emptyList()), it) }
+        if (!targetInfo.clazz.isAbstract && targetInfo.clazz.isSubclassOf(MutableList::class)) {
+            @Suppress("UNCHECKED_CAST")
+            val muList: MutableList<Any?> = targetInfo.clazz.createInstance() as MutableList<Any?>
+            muList.addAll(valueList)
+            return muList
+        }
+        return ArrayList(valueList)
+    }
+
+}
+
+private object SetDecoder : ValueDecoder() {
+    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
+        return target.isSubclassOf(Set::class)
+    }
+
+    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
+        val eleType: KClass<*> = targetInfo.firstArg ?: return null
+        val ls: Iterable<Any?> = prepareItems(value, targetInfo.findAnnotation())
+        val valueList = ls.map { decodeValue(TargetInfo(eleType, targetInfo.annotations, emptyList()), it) }
+        if (!targetInfo.clazz.isAbstract && targetInfo.clazz.isSubclassOf(MutableSet::class)) {
+            @Suppress("UNCHECKED_CAST")
+            val muList: MutableSet<Any?> = targetInfo.clazz.createInstance() as MutableSet<Any?>
+            muList.addAll(valueList)
+            return muList
+        }
+        return LinkedHashSet(valueList)
+    }
+
+}
+
+private object MapDecoder : ValueDecoder() {
+    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
+        return target.isSubclassOf(Map::class)
+    }
+
+    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
+        if (targetInfo.typeArguments.size < 2) return null
+        val keyType: KClass<*> = targetInfo.firstArg!!
+        val valType: KClass<*> = targetInfo.secondArg!!
+        val valueMap: LinkedHashMap<Any, Any?> = LinkedHashMap<Any, Any?>()
+        if (value is Map<*, *>) {
+            for ((k, v) in value) {
+                val vv = decodeValue(TargetInfo(valType, targetInfo.annotations), v)
+                valueMap[k as Any] = vv
+            }
+        } else if (value is String) {
+            val mapChars: SepChar? = targetInfo.findAnnotation()
+            val pls = value.split(mapChars?.list ?: ',').map { it.split(mapChars?.map ?: ':') }
+            for (p in pls) {
+                if (p.size == 2) {
+                    val k = decodeValue(TargetInfo(keyType, targetInfo.annotations), p.first().trim()) ?: continue
+                    val v = decodeValue(TargetInfo(valType, targetInfo.annotations), p.second().trim()) ?: continue
+                    valueMap[k] = v
+                }
+            }
+        } else {
+            error("Type  dismatch $value ")
+        }
+        if (!targetInfo.clazz.isAbstract && targetInfo.clazz.isSubclassOf(MutableMap::class)) {
+            @Suppress("UNCHECKED_CAST")
+            val muMap: MutableMap<Any, Any?> = targetInfo.clazz.createInstance() as MutableMap<Any, Any?>
+            muMap.putAll(valueMap)
+            return muMap
+        }
+        return valueMap
+    }
+
+}
+
+private fun SQLArray.listAny(freeMe: Boolean = true): ArrayList<Any?> {
+    val ls = ArrayList<Any?>()
+    this.resultSet.use {
+        while (it.next()) {
+            ls.add(it.getObject(2))
+        }
+    }
+    if (freeMe) this.free()
+    return ls
+}
+
 private fun prepareItems(value: Any, sepChar: SepChar? = null): Iterable<Any?> {
     return when (value) {
         is Set<*> -> value
         is List<*> -> value
         is Array<*> -> value.toList()
-        is java.sql.Array -> {
-            val ls = ArrayList<Any>()
-            value.resultSet.use { rs ->
-                while (rs.next()) {
-                    ls += rs.getObject(2)
-                }
-            }
-            value.free()
-            ls
-        }
+        is java.sql.Array -> value.listAny(true)
 
         is String -> value.split(sepChar?.list ?: ',').map { it.trim() }
 
@@ -425,3 +373,28 @@ private fun prepareItems(value: Any, sepChar: SepChar? = null): Iterable<Any?> {
     }
 }
 
+private object KsonObjectDecoder : ValueDecoder() {
+    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
+        return target == KsonObject::class
+    }
+
+    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
+        return when (value) {
+            is String -> KsonObject(value)
+            else -> error("unknown type: $value ")
+        }
+    }
+}
+
+private object KsonArrayDecoder : ValueDecoder() {
+    override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
+        return target == KsonArray::class
+    }
+
+    override fun decode(targetInfo: TargetInfo, value: Any): Any? {
+        return when (value) {
+            is String -> KsonArray(value)
+            else -> error("unknown type: $value ")
+        }
+    }
+}
