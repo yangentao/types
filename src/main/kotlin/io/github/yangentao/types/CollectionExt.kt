@@ -33,6 +33,12 @@ inline fun <reified T> Collection<Any>.firstTyped(): T? {
 }
 
 @Suppress("UNCHECKED_CAST")
+inline fun <reified T> Collection<Any>.typed(): T? {
+    return this.first { it is T } as? T
+}
+
+
+@Suppress("UNCHECKED_CAST")
 fun <B : Any> Collection<*>.cast(): List<B> {
     return this.map { it as B }
 }
