@@ -2,13 +2,17 @@ package io.github.yangentao.types
 
 import kotlin.reflect.KClass
 
-class JavaArray(val array: Any) : Iterable<Any> {
+class JavaArray(val array: Any) : Iterable<Any?> {
     val elementClass: KClass<*> get() = this.array::class.java.componentType.kotlin
-    val length: Int = java.lang.reflect.Array.getLength(array)
+    val length: Int get() = java.lang.reflect.Array.getLength(array)
     val isEmpty: Boolean get() = length == 0
     val isNotEmpty: Boolean get() = length > 0
 
-    operator fun get(index: Int): Any {
+    init {
+        assert(array.javaClass.isArray)
+    }
+
+    operator fun get(index: Int): Any? {
         return java.lang.reflect.Array.get(array, index)
     }
 
@@ -16,14 +20,18 @@ class JavaArray(val array: Any) : Iterable<Any> {
         java.lang.reflect.Array.set(array, index, value)
     }
 
-    override fun iterator(): Iterator<Any> {
+    override fun iterator(): Iterator<Any?> {
         return JavaArrayIterator(this)
     }
 
-    class JavaArrayIterator(private val javaArray: JavaArray) : Iterator<Any> {
+    fun dump() {
+        printX("Array<", elementClass, "> ", "length=", length)
+    }
+
+    class JavaArrayIterator(private val javaArray: JavaArray) : Iterator<Any?> {
         private var index: Int = 0
 
-        override fun next(): Any {
+        override fun next(): Any? {
             return javaArray[index++]
         }
 
@@ -34,10 +42,23 @@ class JavaArray(val array: Any) : Iterable<Any> {
     }
 
     companion object {
-        fun isArray(value: Any): Boolean = value::class.java.isArray
+        fun isArray(value: Any): Boolean = value.javaClass.isArray
 
         fun createArray(elementClass: KClass<*>, length: Int): Any {
             return java.lang.reflect.Array.newInstance(elementClass.java, length)
         }
+
+        fun create(elementClass: KClass<*>, length: Int): JavaArray {
+            val a = java.lang.reflect.Array.newInstance(elementClass.java, length)
+            return JavaArray(a)
+        }
     }
+}
+
+fun main() {
+    val b = arrayOf(1,2,3)
+    val a = Array<String>(2) { "" }
+
+    JavaArray(a).dump()
+
 }
