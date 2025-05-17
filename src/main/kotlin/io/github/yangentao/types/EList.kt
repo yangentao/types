@@ -94,11 +94,11 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
     }
 }
 
-fun main() {
-    val ja = EList.of(1,2,3)
-    ja[0] = 10
-//    ja.removeAt(2)
-    ja.add(99)
-    ja.dump()
-
-}
+//fun main() {
+//    val ja = EList<Int>()
+//    ja[0] = 10
+////    ja.removeAt(2)
+//    ja.add(99)
+//    ja.dump()
+//
+//}
