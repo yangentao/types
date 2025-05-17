@@ -3,7 +3,7 @@ package io.github.yangentao.types
 import kotlin.math.max
 import kotlin.reflect.KClass
 
-private typealias RArray = java.lang.reflect.Array
+
 
 @Suppress("UNCHECKED_CAST")
 class EList<T : Any>(private var buffer: Array<T?>, size: Int = buffer.size) : AbstractMutableList<T>() {
@@ -91,17 +91,17 @@ class EList<T : Any>(private var buffer: Array<T?>, size: Int = buffer.size) : A
         }
 
         operator fun <T : Any> invoke(type: KClass<T>, capacity: Int = 10): EList<T> {
-            val arr = RArray.newInstance(type.java, capacity)
+            val arr = RefArray.newInstance(type.java, capacity)
             return EList(arr as Array<T?>, 0)
         }
 
         inline fun <reified T : Any> empty(): EList<T> {
-            val arr = RArray.newInstance(T::class.java, 0)
+            val arr = RefArray.newInstance(T::class.java, 0)
             return EList(arr as Array<T?>, 0)
         }
 
         fun <T : Any> empty(type: KClass<T>): EList<T> {
-            val arr = RArray.newInstance(type.java, 0)
+            val arr = RefArray.newInstance(type.java, 0)
             return EList(arr as Array<T?>, 0)
         }
 
@@ -110,6 +110,9 @@ class EList<T : Any>(private var buffer: Array<T?>, size: Int = buffer.size) : A
         }
     }
 }
+
+
+
 
 //
 //open class A(val value: Int) {
