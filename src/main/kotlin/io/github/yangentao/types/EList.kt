@@ -5,9 +5,10 @@ import kotlin.reflect.KClass
 
 private typealias RArray = java.lang.reflect.Array
 
-class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : AbstractMutableList<T>() {
+@Suppress("UNCHECKED_CAST")
+class EList<T : Any>(private var buffer: Array<T?>, size: Int = buffer.size) : AbstractMutableList<T>() {
 
-    val elementType: KClass<*> get() = buffer::class.java.componentType.kotlin
+    val elementType: KClass<T> get() = buffer::class.java.componentType.kotlin as KClass<T>
     val capacity: Int get() = buffer.size
     override var size: Int = size
         private set
@@ -28,19 +29,16 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun getOr(index: Int): T? {
         if (index in indices) return buffer[index] as T
         return null
     }
 
-    @Suppress("UNCHECKED_CAST")
     override operator fun get(index: Int): T {
         if (index in indices) return buffer[index] as T
         throw IndexOutOfBoundsException(index)
     }
 
-    @Suppress("UNCHECKED_CAST")
     override operator fun set(index: Int, element: T): T {
         when (index) {
             size -> {
@@ -58,7 +56,6 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun removeAt(index: Int): T {
         if (index !in indices) throw IndexOutOfBoundsException(index)
         val old = buffer[index]
@@ -80,20 +77,35 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
     }
 
     fun dump() {
-        val s = "EList<${elementType.simpleName}>($size)[${this.joinToString(", ") { it.toString() }}]"
+        val s = "EList<${elementType.simpleName}>($size)[${this.joinToString(", ")}]"
         println(s)
     }
 
     companion object {
-        inline operator fun <reified T> invoke(capacity: Int = 10): EList<T> {
+        inline operator fun <reified T : Any> invoke(capacity: Int = 10): EList<T> {
             return EList(Array(capacity) { null }, 0)
         }
 
-        inline operator fun <reified T> invoke(collection: Collection<T>): EList<T> {
+        inline operator fun <reified T : Any> invoke(collection: Collection<T>): EList<T> {
             return EList(collection.toTypedArray())
         }
 
-        inline fun <reified T> of(vararg elements: T): EList<T> {
+        operator fun <T : Any> invoke(type: KClass<T>, capacity: Int = 10): EList<T> {
+            val arr = RArray.newInstance(type.java, capacity)
+            return EList(arr as Array<T?>, 0)
+        }
+
+        inline fun <reified T : Any> empty(): EList<T> {
+            val arr = RArray.newInstance(T::class.java, 0)
+            return EList(arr as Array<T?>, 0)
+        }
+
+        fun <T : Any> empty(type: KClass<T>): EList<T> {
+            val arr = RArray.newInstance(type.java, 0)
+            return EList(arr as Array<T?>, 0)
+        }
+
+        inline fun <reified T : Any> of(vararg elements: T): EList<T> {
             return EList(arrayOf(*elements), elements.size)
         }
     }

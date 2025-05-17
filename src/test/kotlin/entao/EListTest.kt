@@ -6,6 +6,17 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 
 class EListTest {
+
+    @Test
+    fun types() {
+        val ls = EList(String::class)
+        ls.add("1")
+        ls.add("2")
+        assertEquals(2, ls.size)
+        assertEquals("1", ls[0])
+        assertEquals("2", ls[1])
+    }
+
     @Test
     fun remove() {
         val ls = EList.of(1, 2, 3)

@@ -38,8 +38,8 @@ fun KClass<*>.decodeValue(source: Any?): Any? {
 class TargetInfo(val clazz: KClass<*>, val annotations: List<Annotation> = emptyList(), val typeArguments: List<KType> = emptyList()) {
     val hasArguments: Boolean get() = typeArguments.isNotEmpty()
 
-    val firstArg: KClass<*>? get() = typeArguments.firstOrNull()?.classifier as KClass<*>
-    val secondArg: KClass<*>? get() = typeArguments.secondOrNull()?.classifier as KClass<*>
+    val firstArg: KClass<*>? get() = typeArguments.firstOr()?.classifier as KClass<*>
+    val secondArg: KClass<*>? get() = typeArguments.secondOr()?.classifier as KClass<*>
 
     inline fun <reified T : Annotation> findAnnotation(): T? {
         return annotations.firstOrNull { it is T } as? T
@@ -78,7 +78,7 @@ abstract class ValueDecoder() {
 
         fun decodeValue(target: TargetInfo, source: Any?): Any? {
             if (source == null) {
-                val nullAnno: NullValue? = target.annotations.firstTyped()
+                val nullAnno: NullValue? = target.annotations.typed()
                 if (nullAnno != null) {
                     return decodeValue(target, nullAnno.value)
                 }
@@ -126,7 +126,7 @@ private object StringDecoder : ValueDecoder() {
             is java.sql.Timestamp -> return DateTime.from(value).formatDateTime()
 
             is java.util.Date -> {
-                val dp: DatePattern? = targetInfo.annotations.firstTyped()
+                val dp: DatePattern? = targetInfo.annotations.typed()
                 return if (dp != null) {
                     SimpleDateFormat(dp.format, Locale.getDefault()).format(value)
                 } else {
@@ -135,7 +135,7 @@ private object StringDecoder : ValueDecoder() {
             }
 
             is LocalDate -> {
-                val dp: DatePattern? = targetInfo.annotations.firstTyped()
+                val dp: DatePattern? = targetInfo.annotations.typed()
                 return if (dp != null) {
                     DateTime.from(value).format(dp.format)
                 } else {
