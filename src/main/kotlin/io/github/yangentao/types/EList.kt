@@ -93,12 +93,25 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
         }
     }
 }
-
+//
+//open class A(val value: Int) {
+//    override fun toString(): String {
+//        return "A($value)"
+//    }
+//}
+//
+//class B(value: Int) : A(value) {
+//    override fun toString(): String {
+//        return "B($value)"
+//    }
+//}
+//
 //fun main() {
-//    val ja = EList<Int>()
-//    ja[0] = 10
+//    val ja = EList.of(A(1), A(2), B(3))
+//    ja[0] = B(10)
+////    ja[0] = 10
 ////    ja.removeAt(2)
-//    ja.add(99)
+////    ja.add(99)
 //    ja.dump()
 //
 //}
