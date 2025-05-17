@@ -58,14 +58,15 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun removeAt(index: Int): T {
         if (index !in indices) throw IndexOutOfBoundsException(index)
-        val old = get(index)
+        val old = buffer[index]
         if (index < size - 1) {
             System.arraycopy(buffer, index + 1, buffer, index, size - 1 - index)
         }
         size -= 1
-        return old
+        return old as T
     }
 
     override fun add(index: Int, element: T) {
@@ -88,11 +89,16 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
             return EList(Array(capacity) { null }, 0)
         }
 
+        inline operator fun <reified T> invoke(collection: Collection<T>): EList<T> {
+            return EList(collection.toTypedArray())
+        }
+
         inline fun <reified T> of(vararg elements: T): EList<T> {
             return EList(arrayOf(*elements), elements.size)
         }
     }
 }
+
 //
 //open class A(val value: Int) {
 //    override fun toString(): String {
@@ -107,11 +113,8 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
 //}
 //
 //fun main() {
-//    val ja = EList.of(A(1), A(2), B(3))
-//    ja[0] = B(10)
-////    ja[0] = 10
-////    ja.removeAt(2)
-////    ja.add(99)
+////    val ja = EList(listOf(1, 2, 3))
+//    val ja = EList(arrayOf(1, 2, 3))
 //    ja.dump()
 //
 //}

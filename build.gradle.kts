@@ -16,7 +16,7 @@ plugins {
 
 group = "io.github.yangentao"
 
-version = "1.1.1"
+version = "1.1.2"
 val artifactName = "types"
 val githubLib = "types"
 val descLib = "Kotlin reflect and types."
@@ -32,7 +32,7 @@ dependencies {
     implementation(kotlin("reflect"))
     implementation(kotlin("stdlib"))
     api("io.github.yangentao:anno:[1.1.0,)")
-    api("io.github.yangentao:kson:[1.1.0,)")
+    api("io.github.yangentao:kson:[1.1.7,)")
 }
 
 tasks.test {

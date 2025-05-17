@@ -1,11 +1,10 @@
 package io.github.yangentao.types
 
-
 object Hex {
-    private val DICT = "0123456789ABCDEF"
+    private const val DICT = "0123456789ABCDEF"
 
     // 8->08,  17->1f
-    fun encode(b: Int): String {
+    fun encodeByte(b: Int): String {
         val arr = CharArray(2)
         arr[0] = DICT[0x0f and (b ushr 4)]
         arr[1] = DICT[0x0f and b]
@@ -31,9 +30,9 @@ object Hex {
             return ByteArray(0)
         }
         if (strLen % 2 != 0) {
-            throw IllegalArgumentException("字符串长度必须是2的倍数")
+            error("字符串长度必须是2的倍数")
         }
-        val s = hexString.uppercase()
+        val s = hexString
 
         val bytes = ByteArray(strLen / 2)
         var i = 0
@@ -57,6 +56,6 @@ object Hex {
         if (ch in 'a'..'f') {
             return ch - 'a' + 10
         }
-        throw IllegalArgumentException("不合法的字符$ch")
+        error("不合法的字符$ch")
     }
 }
