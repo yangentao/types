@@ -5,11 +5,11 @@ import kotlin.reflect.KClass
 
 private typealias RArray = java.lang.reflect.Array
 
-@Suppress("UNCHECKED_CAST")
-class EList<T>(private var buffer: Array<T?>) : Iterable<T> {
+class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : AbstractMutableList<T>() {
+
     val elementType: KClass<*> get() = buffer::class.java.componentType.kotlin
     val capacity: Int get() = buffer.size
-    var size: Int = 0
+    override var size: Int = size
         private set
     val indices: IntRange get() = 0..<size
 
@@ -28,52 +28,54 @@ class EList<T>(private var buffer: Array<T?>) : Iterable<T> {
         }
     }
 
-    fun addAll(ls: Collection<T>) {
-        ensureCapacity(capacity + ls.size)
-        for (v in ls) add(v)
-    }
-
-    fun add(value: T) {
-        if (size >= capacity) {
-            grow()
-        }
-        buffer[size] = value
-        size += 1
-    }
-
+    @Suppress("UNCHECKED_CAST")
     fun getOr(index: Int): T? {
         if (index in indices) return buffer[index] as T
         return null
     }
 
-    operator fun get(index: Int): T {
+    @Suppress("UNCHECKED_CAST")
+    override operator fun get(index: Int): T {
         if (index in indices) return buffer[index] as T
         throw IndexOutOfBoundsException(index)
     }
 
-    operator fun set(index: Int, value: T) {
+    @Suppress("UNCHECKED_CAST")
+    override operator fun set(index: Int, element: T): T {
         when (index) {
-            size -> add(value)
-            in indices -> buffer[index] = value
+            size -> {
+                add(element)
+                return element
+            }
+
+            in indices -> {
+                val old = buffer[index]
+                buffer[index] = element
+                return old as T
+            }
+
             else -> throw IndexOutOfBoundsException(index)
         }
     }
 
-    override operator fun iterator(): Iterator<T> {
-        return JArrayIterator()
+    override fun removeAt(index: Int): T {
+        if (index !in indices) throw IndexOutOfBoundsException(index)
+        val old = get(index)
+        if (index < size - 1) {
+            System.arraycopy(buffer, index + 1, buffer, index, size - 1 - index)
+        }
+        size -= 1
+        return old
     }
 
-    inner class JArrayIterator() : Iterator<T> {
-        private var index: Int = 0
-
-        override fun next(): T {
-            return get(index++)
+    override fun add(index: Int, element: T) {
+        if (index !in 0..size) throw IndexOutOfBoundsException(index)
+        if (size >= capacity) grow()
+        if (index < size) {
+            System.arraycopy(buffer, index, buffer, index + 1, size - index)
         }
-
-        override fun hasNext(): Boolean {
-            return index < size
-        }
-
+        buffer[index] = element
+        size += 1
     }
 
     fun dump() {
@@ -83,20 +85,20 @@ class EList<T>(private var buffer: Array<T?>) : Iterable<T> {
 
     companion object {
         inline operator fun <reified T> invoke(capacity: Int = 10): EList<T> {
-            return EList<T>(Array<T?>(capacity) { null })
+            return EList(Array(capacity) { null }, 0)
         }
 
+        inline fun <reified T> of(vararg elements: T): EList<T> {
+            return EList(arrayOf(*elements), elements.size)
+        }
     }
 }
 
 fun main() {
-    val ja = EList<Int>()
+    val ja = EList.of(1,2,3)
     ja[0] = 10
-    ja[1] = 20
-    ja.addAll(listOf(2, 3, 4, 5))
+//    ja.removeAt(2)
+    ja.add(99)
     ja.dump()
-    for (v in ja) {
-        println(v)
-    }
 
 }
