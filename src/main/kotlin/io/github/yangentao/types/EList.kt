@@ -79,7 +79,7 @@ class EList<T>(private var buffer: Array<T?>, size: Int = buffer.size) : Abstrac
     }
 
     fun dump() {
-        val s = "JArray<${elementType.simpleName}>($size)[${this.joinToString(", ") { it.toString() }}]"
+        val s = "EList<${elementType.simpleName}>($size)[${this.joinToString(", ") { it.toString() }}]"
         println(s)
     }
 
