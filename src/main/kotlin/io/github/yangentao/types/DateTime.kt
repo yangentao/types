@@ -77,9 +77,12 @@ val Long.toLocalDate: LocalDate get() = LocalDate.ofInstant(java.time.Instant.of
 val Long.toLocalDateTime: LocalDateTime get() = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
 
 fun main() {
-    val dt = DateTime()
-    println(dt.localDateTime)
-    println(dt.localDate)
+    val m = System.currentTimeMillis()
+    printX("tick: ", m)
+    val t = m.toLocalTime
+    printX("time: ", t)
+    println(t.timeInMillis)
+    printX(DateTime.from(LocalTime.now()).timeInMillis)
 }
 
 class DateTime(tm: Long = System.currentTimeMillis(), timeZone: TimeZone = TimeZone.getDefault()) {
@@ -327,9 +330,9 @@ class DateTime(tm: Long = System.currentTimeMillis(), timeZone: TimeZone = TimeZ
         fun time(hour: Int, minute: Int = 0, second: Int = 0, millSeconds: Int = 0, utc: Boolean = false): DateTime {
             val zone: TimeZone = if (utc) timeZone0 else TimeZone.getDefault()
             val d = DateTime(0, zone)
-            d.year = 0
-            d.monthX = 0
-            d.day = 0
+            d.year = 1970
+            d.monthX = 1
+            d.day = 1
             d.hour = hour
             d.minute = minute
             d.second = second
