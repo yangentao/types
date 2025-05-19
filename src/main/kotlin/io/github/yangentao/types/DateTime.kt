@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 
@@ -30,11 +31,14 @@ val Long.asDateSQL: java.sql.Date get() = java.sql.Date(this)
 val Long.asTimeSQL: Time get() = Time(this)
 
 object Now {
+    val millis: Long get() = System.currentTimeMillis()
     val dateUtil: Date get() = Date(System.currentTimeMillis())
     val dateSQL: java.sql.Date get() = java.sql.Date(System.currentTimeMillis())
     val time: Time get() = Time(System.currentTimeMillis())
     val timestamp: Timestamp get() = Timestamp(System.currentTimeMillis())
-    val millis: Long get() = System.currentTimeMillis()
+    val localTime: LocalTime get() = LocalTime.now()
+    val localDate: LocalDate get() = LocalDate.now()
+    val localDateTime: LocalDateTime get() = LocalDateTime.now()
 }
 
 fun Date.format(fmt: String): String {
@@ -53,6 +57,31 @@ fun LocalDateTime.format(fmt: String): String {
     return this.format(DateTimeFormatter.ofPattern(fmt))
 }
 
+val LocalDateTime.timeInMillis: Long
+    get() {
+        val z = ZoneId.systemDefault().rules.getOffset(this)
+        return this.toInstant(z).toEpochMilli()
+    }
+val LocalDate.timeInMillis: Long
+    get() {
+        return this.atTime(LocalTime.MIN).timeInMillis
+    }
+val LocalTime.timeInMillis: Long
+    get() {
+        return this.atDate(LocalDate.EPOCH).timeInMillis
+    }
+
+// mill seconds
+val Long.toLocalTime: LocalTime get() = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
+val Long.toLocalDate: LocalDate get() = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
+val Long.toLocalDateTime: LocalDateTime get() = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
+
+fun main() {
+    val dt = DateTime()
+    println(dt.localDateTime)
+    println(dt.localDate)
+}
+
 class DateTime(tm: Long = System.currentTimeMillis(), timeZone: TimeZone = TimeZone.getDefault()) {
 
     val calendar: Calendar = Calendar.getInstance(timeZone)
@@ -65,9 +94,9 @@ class DateTime(tm: Long = System.currentTimeMillis(), timeZone: TimeZone = TimeZ
     val dateSQL: java.sql.Date get() = java.sql.Date(longValue)
     val time: Time get() = Time(longValue)
     val timestamp: Timestamp get() = Timestamp(longValue)
-    val localDate: LocalDate get() = LocalDate.of(this.year, this.monthX, this.day)
     val localTime: LocalTime get() = LocalTime.of(this.hour, this.minute, this.second, this.millSecond * 1_000_000)
-    val localDateTime: LocalDateTime get() = LocalDateTime.of(this.year, this.monthX, this.day, this.hour, this.minute, this.second, this.millSecond * 1_000_000)
+    val localDate: LocalDate get() = timeInMillis.toLocalDate //LocalDate.of(this.year, this.monthX, this.day)
+    val localDateTime: LocalDateTime get() = timeInMillis.toLocalDateTime //LocalDateTime.of(this.year, this.monthX, this.day, this.hour, this.minute, this.second, this.millSecond * 1_000_000)
 
     var timeInMillis: Long
         get() {

@@ -16,13 +16,14 @@ plugins {
 
 group = "io.github.yangentao"
 
-version = "1.1.3"
+version = "1.1.8"
 val artifactName = "types"
 val githubLib = "types"
 val descLib = "Kotlin reflect and types."
 
 
 repositories {
+    mavenLocal()
     mavenCentral()
 //    maven("https://app800.cn/maven/repository/public/")
 }
@@ -32,7 +33,7 @@ dependencies {
     implementation(kotlin("reflect"))
     implementation(kotlin("stdlib"))
     api("io.github.yangentao:anno:[1.1.0,)")
-    api("io.github.yangentao:kson:[1.1.7,)")
+    api("io.github.yangentao:kson:[1.1.8,)")
 }
 
 tasks.test {
