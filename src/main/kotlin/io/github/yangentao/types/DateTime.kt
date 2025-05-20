@@ -16,6 +16,8 @@ import java.util.*
  * Created by entaoyang@163.com on 2016/12/20.
  */
 
+typealias DateSQL = java.sql.Date
+
 val Int.SEC_MILLS: Long get() = this * 1000L
 val Int.MIN_MILLS: Long get() = this * 60_000L
 val Int.HOR_MILLS: Long get() = this * 3600_000L
@@ -75,15 +77,6 @@ val LocalTime.timeInMillis: Long
 val Long.toLocalTime: LocalTime get() = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
 val Long.toLocalDate: LocalDate get() = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
 val Long.toLocalDateTime: LocalDateTime get() = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
-
-fun main() {
-    val m = System.currentTimeMillis()
-    printX("tick: ", m)
-    val t = m.toLocalTime
-    printX("time: ", t)
-    println(t.timeInMillis)
-    printX(DateTime.from(LocalTime.now()).timeInMillis)
-}
 
 class DateTime(tm: Long = System.currentTimeMillis(), timeZone: TimeZone = TimeZone.getDefault()) {
 
