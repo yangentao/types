@@ -180,14 +180,27 @@ private object NumberDecoder : ValueDecoder() {
 }
 
 private object BoolDecoder : ValueDecoder() {
+    val trueList = listOf("true", "yes", "1")
+    val falseList = listOf("false", "no", "0")
+
+    fun toBool(s: String): Boolean? {
+        for (a in trueList) {
+            if (a ieq s) return true
+        }
+        for (a in falseList) {
+            if (a ieq s) return false
+        }
+        return null
+    }
+
     override fun accept(target: KClass<*>, source: KClass<*>): Boolean {
         return target == Boolean::class && (source == String::class || source.isSubclassOf(Number::class))
     }
 
     override fun decode(targetInfo: TargetInfo, value: Any): Boolean? {
         return when (value) {
-            is String -> value.toBoolean()
-            is Number -> value.toInt() == 1
+            is String -> toBool(value)
+            is Number -> if (value.toInt() == 1) true else if (value.toInt() == 0) false else null
             else -> error("NOT support type: ${targetInfo.clazz}")
         }
     }
