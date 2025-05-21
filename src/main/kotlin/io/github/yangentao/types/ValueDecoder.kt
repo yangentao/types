@@ -83,7 +83,7 @@ abstract class ValueDecoder() {
                     return decodeValue(target, nullAnno.value)
                 }
                 val f: String? = target.findAnnotation<ModelField>()?.defaultValue
-                if (f != null) {
+                if (f != null && f.isNotEmpty()) {
                     return decodeValue(target, f)
                 }
                 return null
@@ -216,7 +216,7 @@ private object DateDecoder : ValueDecoder() {
         return target in clsSet && (source in clsSet || source == Long::class || source == String::class)
     }
 
-    private fun toDateTime(info: TargetInfo, value: Any): DateTime {
+    private fun toDateTime(info: TargetInfo, value: Any): DateTime? {
         when (value) {
             is java.sql.Date -> return DateTime.from(value)
             is java.sql.Time -> return DateTime.from(value)
@@ -227,11 +227,12 @@ private object DateDecoder : ValueDecoder() {
             is LocalDateTime -> return DateTime.from(value)
             is Long -> return DateTime(value)
             is String -> {
+                if (value.isEmpty()) return null
                 val dp: DatePattern? = info.findAnnotation()
                 return if (dp != null) {
                     DateTime.parse(dp.format, value) ?: error("Parse error, ${info.clazz},  $value")
                 } else {
-                    DateTime.parseDate(value) ?: DateTime.parseDateTime(value) ?: DateTime.parseTime(value) ?: error("Parse error, ${info.clazz},  $value")
+                    DateTime.parseDate(value) ?: DateTime.parseDateTime(value) ?: DateTime.parseTime(value) ?: error("Parse error, ${info.clazz},  value='$value'")
                 }
             }
 
@@ -240,7 +241,7 @@ private object DateDecoder : ValueDecoder() {
     }
 
     override fun decode(targetInfo: TargetInfo, value: Any): Any? {
-        val dt = toDateTime(targetInfo, value)
+        val dt = toDateTime(targetInfo, value) ?: return null
         return when (targetInfo.clazz) {
             java.util.Date::class -> dt.date
             java.sql.Date::class -> dt.dateSQL
