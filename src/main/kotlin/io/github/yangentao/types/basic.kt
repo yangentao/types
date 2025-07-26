@@ -13,10 +13,9 @@ import kotlin.reflect.KClass
 
 typealias Predicater<T> = (T) -> Boolean
 
-
 val javaVersionInt: Int = System.getProperty("java.specification.version")?.toIntOrNull() ?: 0
 
-@Suppress("Since15")
+@Suppress("Since15", "DEPRECATION")
 val Thread.tid: Long get() = if (javaVersionInt >= 19) this.threadId() else this.id
 
 val Thread.isMain: Boolean get() = this.tid == 1L
@@ -112,5 +111,11 @@ fun KClass<*>.resourceText(name: String): String? {
     val i = this.java.classLoader.getResourceAsStream(name) ?: return null
     i.use {
         return it.readBytes().toString(Charsets.UTF_8)
+    }
+}
+
+class DeamonThread(r: Runnable) : Thread(r) {
+    init {
+        this.isDaemon = true
     }
 }

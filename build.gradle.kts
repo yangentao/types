@@ -7,7 +7,7 @@ buildscript {
     }
 }
 plugins {
-    kotlin("jvm") version "2.1.20"
+    kotlin("jvm") version "2.2.0"
     signing
     id("maven-publish")
     id("org.jetbrains.dokka") version "2.0.0"
@@ -16,7 +16,7 @@ plugins {
 
 group = "io.github.yangentao"
 
-version = "1.1.12"
+version = "2.0.0"
 val artifactName = "types"
 val githubLib = "types"
 val descLib = "Kotlin reflect and types."
@@ -32,8 +32,8 @@ dependencies {
     testImplementation(kotlin("test"))
     implementation(kotlin("reflect"))
     implementation(kotlin("stdlib"))
-    api("io.github.yangentao:anno:[1.1.0,)")
-    api("io.github.yangentao:kson:[1.1.8,)")
+    api("io.github.yangentao:anno:[2.0.0,)")
+    api("io.github.yangentao:kson:[2.0.0,)")
 }
 
 tasks.test {
