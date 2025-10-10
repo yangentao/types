@@ -4,8 +4,10 @@ package io.github.yangentao.types
 
 import io.github.yangentao.anno.*
 import io.github.yangentao.kson.KsonArray
+import io.github.yangentao.kson.KsonBool
 import io.github.yangentao.kson.KsonNum
 import io.github.yangentao.kson.KsonObject
+import io.github.yangentao.kson.KsonString
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -146,6 +148,7 @@ private object StringDecoder : ValueDecoder() {
             is LocalTime -> return DateTime.from(value).formatTime()
 
             is LocalDateTime -> return DateTime.from(value).formatDateTime()
+            is KsonString -> return value.data
             else -> return value.toString()
         }
     }
@@ -201,6 +204,7 @@ private object BoolDecoder : ValueDecoder() {
         return when (value) {
             is String -> toBool(value)
             is Number -> if (value.toInt() == 1) true else if (value.toInt() == 0) false else null
+            is KsonBool -> value.data
             else -> error("NOT support type: ${targetInfo.clazz}")
         }
     }
@@ -235,6 +239,7 @@ private object DateDecoder : ValueDecoder() {
                     DateTime.parseDate(value) ?: DateTime.parseDateTime(value) ?: DateTime.parseTime(value) ?: error("Parse error, ${info.clazz},  value='$value'")
                 }
             }
+            is KsonNum -> return DateTime(value.data.toLong())
 
             else -> error("Unsupport type, ${info.clazz},  $value")
         }
@@ -369,7 +374,6 @@ private fun prepareItems(value: Any, sepChar: SepChar? = null): Iterable<Any?> {
         is DoubleArray -> value.toList()
         is BooleanArray -> value.toList()
         is CharArray -> value.toList()
-
         else -> error("Type  dismatch $value ")
     }
 }
