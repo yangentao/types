@@ -20,7 +20,6 @@ val Thread.tid: Long get() = if (javaVersionInt >= 19) this.threadId() else this
 
 val Thread.isMain: Boolean get() = this.tid == 1L
 
-@Suppress("RecursivePropertyAccessor")
 val Throwable.rootError: Throwable
     get() {
         return this.cause?.rootError ?: this

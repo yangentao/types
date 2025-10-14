@@ -6,10 +6,7 @@ import io.github.yangentao.anno.userName
 import kotlin.jvm.internal.CallableReference
 import kotlin.jvm.internal.FunctionReference
 import kotlin.reflect.*
-import kotlin.reflect.full.declaredMemberProperties
-import kotlin.reflect.full.isSubclassOf
-import kotlin.reflect.full.memberProperties
-import kotlin.reflect.full.valueParameters
+import kotlin.reflect.full.*
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.jvm.javaMethod
 
@@ -65,6 +62,7 @@ fun KParameter.acceptClass(cls: KClass<*>): Boolean {
     return cls.isSubclassOf(this.type.classifier as KClass<*>)
 }
 
+@Deprecated("Use createInstanceX() instead.")
 fun KClass<*>.createInstanceArgOne(arg: Any): Any? {
     val c = this.constructors.firstOrNull {
         val requredParams = it.valueParams
@@ -73,24 +71,41 @@ fun KClass<*>.createInstanceArgOne(arg: Any): Any? {
     return c?.call(arg)
 }
 
-@Suppress("UNCHECKED_CAST")
-fun <T : Any> KClass<*>.createInstanceX(vararg ps: Any): T? {
-    val c = this.constructors.firstOrNull {
-        var result = true
-        val vps = it.valueParams
-        if (vps.size == ps.size) {
-            for (i in vps.indices) {
-                if (!vps[i].acceptValue(ps[i])) {
-                    result = false
-                    break
+fun <T : Any> KClass<T>.createInstanceX(vararg args: Any?): T {
+    if (args.isEmpty()) return createInstance()
+    for (c in constructors) {
+        val map = c.prepareArguments(*args) ?: continue
+        return c.callBy(map)
+    }
+    throw IllegalArgumentException("createInstanceX no match constructor: $this")
+}
+
+private fun KFunction<*>.prepareArguments(vararg args: Any?): Map<KParameter, Any?>? {
+    val ps = this.parameters;
+    if (ps.size < args.size) return null
+
+    val map = LinkedHashMap<KParameter, Any?>()
+    this.parameters.forEach { p ->
+        if (p.index >= args.size) {
+            if (!p.isOptional) return null
+        } else {
+            val v = args[p.index]
+            if (v != null) {
+                if (p.acceptValue(v)) {
+                    map[p] = v
+                } else {
+                    return null
+                }
+            } else {
+                if (p.type.isMarkedNullable) {
+                    map[p] = null
+                } else {
+                    return null
                 }
             }
-        } else {
-            result = false
         }
-        result
-    } ?: return null
-    return c.call(*ps) as T
+    }
+    return map
 }
 
 val KFunction<*>.paramNames: List<String>
