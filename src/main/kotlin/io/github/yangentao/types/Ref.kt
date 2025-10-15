@@ -71,6 +71,15 @@ fun KClass<*>.createInstanceArgOne(arg: Any): Any? {
     return c?.call(arg)
 }
 
+fun <T : Any> KClass<T>.tryCreateInstance(vararg args: Any?): T? {
+    if (args.isEmpty()) return createInstance()
+    for (c in constructors) {
+        val map = c.prepareArguments(*args) ?: continue
+        return c.callBy(map)
+    }
+    return null
+}
+
 fun <T : Any> KClass<T>.createInstanceX(vararg args: Any?): T {
     if (args.isEmpty()) return createInstance()
     for (c in constructors) {
