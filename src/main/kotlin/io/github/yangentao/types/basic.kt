@@ -9,6 +9,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
 typealias Predicater<T> = (T) -> Boolean
@@ -124,4 +125,70 @@ open class DeamonThread(task: Runnable? = null, name: String? = "DeamonThread", 
 internal fun uncaughtException(thread: Thread, ex: Throwable) {
     println("uncaughtException:  ${thread.name}")
     ex.printStackTrace()
+}
+
+fun interface OnException {
+    fun onException(e: Throwable)
+}
+
+class SafeRunnable(val callback: Runnable, val onError: OnException? = null) : Runnable {
+    override fun run() {
+        try {
+            callback.run()
+        } catch (ex: Throwable) {
+            ex.printStackTrace()
+            onError?.onException(ex)
+        }
+    }
+}
+
+class LoopThread(val onLoop: Runnable, val onError: OnException? = null, val delay: Long = 10_000, name: String? = null) : Thread(name ?: "LoopThread") {
+
+    private val running = AtomicBoolean(false)
+    private val lock = Object()
+
+    init {
+        isDaemon = true
+        priority = NORM_PRIORITY
+    }
+
+    val isRunning: Boolean get() = running.get()
+
+    fun trigger() {
+        synchronized(lock) {
+            lock.notify()
+        }
+    }
+
+    fun finish() {
+        running.set(false)
+        synchronized(lock) {
+            lock.notify()
+        }
+    }
+
+    override fun start() {
+        running.set(true)
+        super.start()
+    }
+
+    override fun run() {
+        try {
+            while (running.get()) {
+                try {
+                    onLoop.run()
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                    onError?.onException(e)
+                }
+                if (delay > 0 && running.get()) {
+                    synchronized(lock) {
+                        lock.wait(delay)
+                    }
+                }
+            }
+        } finally {
+            running.set(false)
+        }
+    }
 }

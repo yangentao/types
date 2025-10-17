@@ -48,4 +48,32 @@ val Number.timeMinutes: TimeValue get() = TimeValue(TimeUnit.MINUTES, this.toLon
 val Number.timeHours: TimeValue get() = TimeValue(TimeUnit.HOURS, this.toLong())
 val Number.timeDays: TimeValue get() = TimeValue(TimeUnit.DAYS, this.toLong())
 
+private const val YEAR_MILL: Long = 365 * 24 * 3600_000L
+private const val DAY_MILL: Long = 24 * 3600_000L
+fun TimeValue.format(): String {
+    val sb = StringBuilder()
+    var tm = this.inMillSeconds
+    if (tm == 0L) {
+        sb.append("0毫秒")
+    } else {
+        val years = tm / YEAR_MILL
+        tm %= YEAR_MILL
+        val days = tm / DAY_MILL
+        tm %= DAY_MILL
+        val hours = tm / 3600_000L
+        tm %= 3600_000L
+        val minutes = tm / 60_000L
+        tm %= 60_000L
+        val seconds = tm / 1_000L
+        val millSec = tm % 1000L
+        if (years > 0) sb.append("${years}年")
+        if (days > 0) sb.append("${days}天")
+        if (hours > 0) sb.append("${hours}时")
+        if (minutes > 0) sb.append("${minutes}分")
+        if (seconds > 0) sb.append("${seconds}秒")
+        if (millSec > 0) sb.append("${millSec}毫秒")
+    }
+    return sb.toString()
+}
+
 
