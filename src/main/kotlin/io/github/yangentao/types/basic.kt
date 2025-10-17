@@ -113,8 +113,15 @@ fun KClass<*>.resourceText(name: String): String? {
     }
 }
 
-class DeamonThread(r: Runnable) : Thread(r) {
+open class DeamonThread(task: Runnable? = null, name: String? = "DeamonThread", deamon: Boolean = true, priority: Int = Thread.NORM_PRIORITY) : Thread(task, name) {
     init {
-        this.isDaemon = true
+        this.isDaemon = deamon
+        this.priority = priority
+        setUncaughtExceptionHandler(::uncaughtException)
     }
+}
+
+internal fun uncaughtException(thread: Thread, ex: Throwable) {
+    println("uncaughtException:  ${thread.name}")
+    ex.printStackTrace()
 }
