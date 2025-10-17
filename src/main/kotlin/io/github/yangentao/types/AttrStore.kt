@@ -18,6 +18,10 @@ class AttrStore {
         return v as T
     }
 
+    fun <T : Any> opt(key: String): T? {
+        return map[key] as? T
+    }
+
     fun <T> get(key: String): T {
         return map[key] as T
     }
