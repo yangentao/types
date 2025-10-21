@@ -2,7 +2,7 @@ package io.github.yangentao.types
 
 import java.util.concurrent.*
 
-object Tasks : TaskPool(4)
+object Tasks : TaskPool(8)
 
 open class TaskPool(val corePoolSize: Int = 4) {
     val service: ScheduledExecutorService = Executors.newScheduledThreadPool(corePoolSize) {

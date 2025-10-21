@@ -192,3 +192,18 @@ class LoopThread(val onLoop: Runnable, val onError: OnException? = null, val del
         }
     }
 }
+
+fun interface OnValue<T> {
+    fun onValue(value: T)
+}
+
+fun anyMap(vararg pairs: Pair<String, Any?>): Map<String, Any> {
+    if (pairs.isEmpty()) return emptyMap()
+    val map = LinkedHashMap<String, Any>()
+    for (p in pairs) {
+        p.second?.also {
+            map[p.first] = it
+        }
+    }
+    return map
+}
