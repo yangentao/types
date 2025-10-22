@@ -1,133 +1,98 @@
-@file:Suppress("Since15")
-
 package io.github.yangentao.types
 
-import java.util.concurrent.Future
-import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-fun startVirtual(task: Runnable): Thread {
-    return Thread.ofVirtual().start(task)
-}
-
-fun delayVirtual(millSeconds: Long, task: Runnable): Thread {
-    val a = DelayRunnable(millSeconds, task)
-    return Thread.startVirtualThread(a)
-}
-
-private class DelayRunnable(millSeconds: Long, val runnable: Runnable) : Runnable {
-    private var _calcel = AtomicBoolean(false)
-    private val endTime: Long = System.currentTimeMillis() + millSeconds
-
-    val isCancel: Boolean get() = _calcel.get()
-
-    fun cancel() {
-        if (_calcel.get()) return
-        _calcel.set(true)
-    }
-
-    override fun run() {
-        if (isCancel) return
-        if (!Thread.currentThread().isVirtual) {
-            println("应该在Virtual Thread中调用！")
-        }
-        try {
-            while (true) {
-                val now = System.currentTimeMillis()
-                val delta = endTime - now
-
-                if (delta <= 0) {
-                    break
-                } else if (delta < 500) {
-                    Thread.sleep(delta)
-                    break
-                } else {
-                    Thread.sleep(500)
-                }
-            }
-
-            if (isCancel) return
-            runnable.run()
-        } catch (ex: InterruptedException) {
-            _calcel.set(true)
-        }
-    }
+enum class FutureState {
+    RUNNING,
+    SUCCESS,
+    FAILED,
+    CANCELLED
 }
 
 class HareFuture<T> : Future<T> {
-    private val _state: AtomicReference<Future.State> = AtomicReference(Future.State.RUNNING)
+    private val _state: AtomicReference<FutureState> = AtomicReference(FutureState.RUNNING)
     private val _sem = Semaphore(0)
     private var _onResult: OnValue<T>? = null
     private var _onError: OnValue<Throwable>? = null
     private var _onCancel: Runnable? = null
-    private var _timeoutThread: Thread? = null
+    private var _timeoutFuture: ScheduledFuture<*>? = null
 
     @Volatile
     private var _result: T? = null
 
     @Volatile
-    private var _error: Throwable? = null
+    private var _cause: Throwable? = null
 
+    @Suppress("UNCHECKED_CAST")
     fun onResult(callback: OnValue<T>): HareFuture<T> {
-        _onResult = callback
+        if (isDone) {
+            if (isSuccess) {
+                callback.onValue(_result as T)
+            }
+        } else {
+            _onResult = callback
+        }
         return this
     }
 
     fun onError(callback: OnValue<Throwable>): HareFuture<T> {
-        _onError = callback
+        if (isDone) {
+            if (isFailed) {
+                callback.onValue(_cause!!)
+            }
+        } else {
+            _onError = callback
+        }
         return this
     }
 
     fun onCancel(callback: Runnable): HareFuture<T> {
-        _onCancel = callback
+        if (isDone) {
+            if (isCancelled) {
+                callback.run()
+            }
+        } else {
+            _onCancel = callback
+        }
         return this
     }
 
     fun onTimeout(millSeconds: Long, callback: Runnable): HareFuture<T> {
-        /// onTimeout的callback中执行的代码， 不能在cancel时被中断
-        // onTimeout(1000){
-        //    fu.cancel()
-        //    ......// 这里要执行下去， 不能被 interrupt
-        // }
-        // 这里的代码， 是不能被中断的， 比如 在其中调用了fu.cancel()
-        _timeoutThread = delayVirtual(millSeconds) {
-            startVirtual(callback)
+        if (isDone) return this
+        _timeoutFuture = delayTask(millSeconds) {
+            if (!isDone) callback.run()
         }
         return this
     }
 
     private fun cancelTimeout() {
-        val t = _timeoutThread ?: return
-        if (!t.isAlive) return
-        if (t.isInterrupted) return
-        t.interrupt()
-        _timeoutThread = null
+        _timeoutFuture?.cancel(false)
+        _timeoutFuture = null
     }
 
     internal fun complete(value: T) {
         if (isDone) return
         cancelTimeout()
         this._result = value
-        _state.set(Future.State.SUCCESS)
+        _state.set(FutureState.SUCCESS)
         _sem.release()
         val r = _onResult
         if (r != null) {
-            startVirtual { r.onValue(value) }
+            asyncTask { r.onValue(value) }
         }
     }
 
     internal fun completeError(e: Throwable) {
         if (isDone) return
         cancelTimeout()
-        this._error = e
-        _state.set(Future.State.FAILED)
+        this._cause = e
+        _state.set(FutureState.FAILED)
         _sem.release()
         val oe = _onError
         if (oe != null) {
-            startVirtual { oe.onValue(e) }
+            asyncTask { oe.onValue(e) }
         }
     }
 
@@ -138,17 +103,24 @@ class HareFuture<T> : Future<T> {
     override fun cancel(mayInterruptIfRunning: Boolean): Boolean {
         if (isDone) return false
         cancelTimeout()
-        _state.set(Future.State.CANCELLED)
+        _state.set(FutureState.CANCELLED)
         _sem.release()
         val oc = _onCancel
         if (oc != null) {
-            startVirtual { oc.run() }
+            asyncTask { oc.run() }
         }
         return true
     }
 
+    val error: Throwable?
+        get() {
+            if (isFailed) return _cause
+            return null
+        }
+
+    @Suppress("Since15")
     override fun exceptionNow(): Throwable? {
-        if (isFailed) return _error
+        if (isFailed) return _cause
         return null
     }
 
@@ -167,10 +139,10 @@ class HareFuture<T> : Future<T> {
             _sem.release()
         }
         when (_state.get()) {
-            Future.State.RUNNING -> error("Should NOT happen")
-            Future.State.SUCCESS -> return _result as T
-            Future.State.FAILED -> throw _error!!
-            Future.State.CANCELLED -> error("Already Cancelled")
+            FutureState.RUNNING -> error("Should NOT happen")
+            FutureState.SUCCESS -> return _result as T
+            FutureState.FAILED -> throw _cause!!
+            FutureState.CANCELLED -> error("Already Cancelled")
         }
     }
 
@@ -184,27 +156,33 @@ class HareFuture<T> : Future<T> {
             }
         }
         when (_state.get()) {
-            Future.State.RUNNING -> error("Should NOT happen")
-            Future.State.SUCCESS -> return _result as T
-            Future.State.FAILED -> throw _error!!
-            Future.State.CANCELLED -> error("Already Cancelled")
+            FutureState.RUNNING -> error("Should NOT happen")
+            FutureState.SUCCESS -> return _result as T
+            FutureState.FAILED -> throw _cause!!
+            FutureState.CANCELLED -> error("Already Cancelled")
         }
     }
 
-    val isSuccess: Boolean get() = _state.get() == Future.State.SUCCESS
+    val isSuccess: Boolean get() = _state.get() == FutureState.SUCCESS
 
-    val isFailed: Boolean get() = _state.get() == Future.State.FAILED
+    val isFailed: Boolean get() = _state.get() == FutureState.FAILED
 
     override fun isCancelled(): Boolean {
-        return _state.get() == Future.State.CANCELLED
+        return _state.get() == FutureState.CANCELLED
     }
 
     override fun isDone(): Boolean {
-        return _state.get() != Future.State.RUNNING
+        return _state.get() != FutureState.RUNNING
     }
 
+    @Suppress("Since15")
     override fun state(): Future.State {
-        return _state.get()
+        return when (_state.get()) {
+            FutureState.RUNNING -> Future.State.RUNNING
+            FutureState.SUCCESS -> Future.State.SUCCESS
+            FutureState.FAILED -> Future.State.FAILED
+            FutureState.CANCELLED -> Future.State.CANCELLED
+        }
     }
 
 }
@@ -219,7 +197,7 @@ class Completer<T>(private val sync: Boolean = false) {
         if (sync) {
             future.complete(result)
         } else {
-            startVirtual { future.complete(result) }
+            asyncTask { future.complete(result) }
         }
     }
 
@@ -228,7 +206,7 @@ class Completer<T>(private val sync: Boolean = false) {
         if (sync) {
             future.completeError(e)
         } else {
-            startVirtual { future.completeError(e) }
+            asyncTask { future.completeError(e) }
         }
     }
 }

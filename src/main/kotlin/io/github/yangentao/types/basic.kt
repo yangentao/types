@@ -9,6 +9,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
+import java.util.concurrent.Callable
+import java.util.concurrent.Future
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
@@ -20,6 +24,8 @@ val javaVersionInt: Int = System.getProperty("java.specification.version")?.toIn
 val Thread.tid: Long get() = if (javaVersionInt >= 19) this.threadId() else this.id
 
 val Thread.isMain: Boolean get() = this.tid == 1L
+
+
 
 val Throwable.rootError: Throwable
     get() {
@@ -187,6 +193,8 @@ class LoopThread(val onLoop: Runnable, val onError: OnException? = null, val del
                     }
                 }
             }
+        } catch (ie: InterruptedException) {
+            running.set(false)
         } finally {
             running.set(false)
         }

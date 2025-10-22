@@ -3,6 +3,7 @@ package io.github.yangentao.types
 import kotlin.math.max
 import kotlin.reflect.KClass
 
+// 带类型的List
 @Suppress("UNCHECKED_CAST")
 class EList<T : Any>(private var buffer: JavaArray, size: Int = buffer.length) : AbstractMutableList<T>() {
 
