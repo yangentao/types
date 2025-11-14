@@ -4,7 +4,11 @@ import java.util.concurrent.*
 
 @Suppress("Since15")
 fun taskVirtual(task: Runnable) {
-    Thread.ofVirtual().start(task)
+    if (javaVersionInt >= 19) {
+        Thread.ofVirtual().start(task)
+    } else {
+        Tasks.submit(task)
+    }
 }
 
 fun asyncTask(task: Runnable): Future<*> {

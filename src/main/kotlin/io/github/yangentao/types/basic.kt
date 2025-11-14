@@ -206,6 +206,10 @@ fun interface OnValue<T> {
     fun onValue(value: T)
 }
 
+fun interface ValueCallback<T> {
+    fun onValue(value: T)
+}
+
 fun anyMap(vararg pairs: Pair<String, Any?>): Map<String, Any> {
     if (pairs.isEmpty()) return emptyMap()
     val map = LinkedHashMap<String, Any>()

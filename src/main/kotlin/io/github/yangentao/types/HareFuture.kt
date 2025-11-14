@@ -14,9 +14,10 @@ enum class FutureState {
 class HareFuture<T> : Future<T> {
     private val _state: AtomicReference<FutureState> = AtomicReference(FutureState.RUNNING)
     private val _sem = Semaphore(0)
-    private var _onResult: OnValue<T>? = null
-    private var _onError: OnValue<Throwable>? = null
+    private var _onResult: ValueCallback<T>? = null
+    private var _onError: ValueCallback<Throwable>? = null
     private var _onCancel: Runnable? = null
+    private var _onDone: Runnable? = null
     private var _timeoutFuture: ScheduledFuture<*>? = null
 
     @Volatile
@@ -25,11 +26,17 @@ class HareFuture<T> : Future<T> {
     @Volatile
     private var _cause: Throwable? = null
 
+    private fun invokeCallback(block: Runnable) {
+        taskVirtual(block)
+    }
+
     @Suppress("UNCHECKED_CAST")
-    fun onResult(callback: OnValue<T>): HareFuture<T> {
+    fun onResult(callback: ValueCallback<T>): HareFuture<T> {
         if (isDone) {
             if (isSuccess) {
-                callback.onValue(_result as T)
+                invokeCallback {
+                    callback.onValue(_result as T)
+                }
             }
         } else {
             _onResult = callback
@@ -37,10 +44,12 @@ class HareFuture<T> : Future<T> {
         return this
     }
 
-    fun onError(callback: OnValue<Throwable>): HareFuture<T> {
+    fun onError(callback: ValueCallback<Throwable>): HareFuture<T> {
         if (isDone) {
             if (isFailed) {
-                callback.onValue(_cause!!)
+                invokeCallback {
+                    callback.onValue(_cause!!)
+                }
             }
         } else {
             _onError = callback
@@ -51,10 +60,19 @@ class HareFuture<T> : Future<T> {
     fun onCancel(callback: Runnable): HareFuture<T> {
         if (isDone) {
             if (isCancelled) {
-                callback.run()
+                invokeCallback(callback)
             }
         } else {
             _onCancel = callback
+        }
+        return this
+    }
+
+    fun onDone(callback: Runnable): HareFuture<T> {
+        if (isDone) {
+            invokeCallback(callback)
+        } else {
+            _onDone = callback
         }
         return this
     }
@@ -80,7 +98,12 @@ class HareFuture<T> : Future<T> {
         _sem.release()
         val r = _onResult
         if (r != null) {
-            asyncTask { r.onValue(value) }
+            invokeCallback {
+                r.onValue(value)
+                _onDone?.run()
+            }
+        } else {
+            _onDone?.also { invokeCallback(it) }
         }
     }
 
@@ -92,7 +115,12 @@ class HareFuture<T> : Future<T> {
         _sem.release()
         val oe = _onError
         if (oe != null) {
-            asyncTask { oe.onValue(e) }
+            invokeCallback {
+                oe.onValue(e)
+                _onDone?.also { it.run() }
+            }
+        } else {
+            _onDone?.also { invokeCallback(it) }
         }
     }
 
@@ -107,8 +135,14 @@ class HareFuture<T> : Future<T> {
         _sem.release()
         val oc = _onCancel
         if (oc != null) {
-            asyncTask { oc.run() }
+            invokeCallback {
+                oc.run()
+                _onDone?.also { it.run() }
+            }
+        } else {
+            _onDone?.also { invokeCallback(it) }
         }
+
         return true
     }
 
@@ -163,6 +197,24 @@ class HareFuture<T> : Future<T> {
         }
     }
 
+    // return isSuccess
+    fun waitMill(millseconds: Long): Boolean {
+        if (!isDone) {
+            if (_sem.tryAcquire(millseconds, TimeUnit.MILLISECONDS)) {
+                _sem.release()
+                return isSuccess
+            } else {
+                return false
+            }
+        }
+        return when (_state.get()) {
+            FutureState.RUNNING -> false
+            FutureState.SUCCESS -> true
+            FutureState.FAILED -> false
+            FutureState.CANCELLED -> false
+        }
+    }
+
     val isSuccess: Boolean get() = _state.get() == FutureState.SUCCESS
 
     val isFailed: Boolean get() = _state.get() == FutureState.FAILED
@@ -197,7 +249,7 @@ class Completer<T>(private val sync: Boolean = false) {
         if (sync) {
             future.complete(result)
         } else {
-            asyncTask { future.complete(result) }
+            taskVirtual { future.complete(result) }
         }
     }
 
@@ -206,7 +258,7 @@ class Completer<T>(private val sync: Boolean = false) {
         if (sync) {
             future.completeError(e)
         } else {
-            asyncTask { future.completeError(e) }
+            taskVirtual { future.completeError(e) }
         }
     }
 }
