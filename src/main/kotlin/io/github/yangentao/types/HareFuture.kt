@@ -26,6 +26,9 @@ class HareFuture<T> : Future<T> {
     @Volatile
     private var _cause: Throwable? = null
 
+    @Suppress("UNCHECKED_CAST")
+    private val result: T get() = _result as T
+
     private fun invokeCallback(block: Runnable) {
         taskVirtual(block)
     }
@@ -35,7 +38,7 @@ class HareFuture<T> : Future<T> {
         if (isDone) {
             if (isSuccess) {
                 invokeCallback {
-                    callback.onValue(_result as T)
+                    callback.onValue(result)
                 }
             }
         } else {
@@ -91,7 +94,7 @@ class HareFuture<T> : Future<T> {
         _timeoutFuture = null
     }
 
-    fun complete(value: T) {
+    internal fun complete(value: T) {
         if (isDone) return
         cancelTimeout()
         this._result = value
@@ -108,7 +111,7 @@ class HareFuture<T> : Future<T> {
         }
     }
 
-    fun completeError(e: Throwable) {
+    internal fun completeError(e: Throwable) {
         if (isDone) return
         cancelTimeout()
         this._cause = e
@@ -149,50 +152,44 @@ class HareFuture<T> : Future<T> {
 
     val error: Throwable?
         get() {
-            if (isFailed) return _cause
-            return null
+            return _cause
         }
 
     @Suppress("Since15")
     override fun exceptionNow(): Throwable? {
-        if (isFailed) return _cause
-        return null
+        return _cause
     }
 
     @Suppress("UNCHECKED_CAST")
     fun tryGet(): T? {
         if (isSuccess) {
-            return _result as T
+            return result
         }
         return null
     }
 
     @Suppress("UNCHECKED_CAST")
     override fun get(): T {
-        if (!isDone) {
-            _sem.acquire()
-            _sem.release()
-        }
-        when (_state.get()) {
-            FutureState.RUNNING -> error("Should NOT happen")
-            FutureState.SUCCESS -> return _result as T
-            FutureState.FAILED -> throw _cause!!
-            FutureState.CANCELLED -> error("Already Cancelled")
-        }
+        return get(-1, TimeUnit.MILLISECONDS)
     }
 
     @Suppress("UNCHECKED_CAST")
     override fun get(timeout: Long, unit: TimeUnit): T {
         if (!isDone) {
-            if (_sem.tryAcquire(timeout, unit)) {
+            if (timeout < 0) {
+                _sem.acquire()
                 _sem.release()
             } else {
-                throw TimeoutException()
+                if (_sem.tryAcquire(timeout, unit)) {
+                    _sem.release()
+                } else {
+                    throw TimeoutException()
+                }
             }
         }
         when (_state.get()) {
             FutureState.RUNNING -> error("Should NOT happen")
-            FutureState.SUCCESS -> return _result as T
+            FutureState.SUCCESS -> return result
             FutureState.FAILED -> throw _cause!!
             FutureState.CANCELLED -> error("Already Cancelled")
         }
@@ -203,21 +200,12 @@ class HareFuture<T> : Future<T> {
         if (!isDone) {
             if (_sem.tryAcquire(millseconds, TimeUnit.MILLISECONDS)) {
                 _sem.release()
-                return isSuccess
-            } else {
-                return false
             }
         }
-        return when (_state.get()) {
-            FutureState.RUNNING -> false
-            FutureState.SUCCESS -> true
-            FutureState.FAILED -> false
-            FutureState.CANCELLED -> false
-        }
+        return isSuccess
     }
 
     val isSuccess: Boolean get() = _state.get() == FutureState.SUCCESS
-
     val isFailed: Boolean get() = _state.get() == FutureState.FAILED
     val isRunning: Boolean get() = _state.get() == FutureState.RUNNING
 
@@ -241,18 +229,29 @@ class HareFuture<T> : Future<T> {
 
 }
 
-open class Completer<T> {
+open class AbsCompleter<T> {
     val future: HareFuture<T> = HareFuture()
     open val isCompleted: Boolean get() = future.isDone
 
-    open fun complete(result: T) {
-        if (isCompleted) return
-        taskVirtual { future.complete(result) }
+    protected fun callSuccess(result: T) {
+        future.complete(result)
     }
 
-    open fun completeError(e: Throwable) {
+    protected fun callFailed(e: Throwable) {
+        future.completeError(e)
+    }
+}
+
+open class Completer<T> : AbsCompleter<T>() {
+
+    open fun success(result: T) {
         if (isCompleted) return
-        taskVirtual { future.completeError(e) }
+        taskVirtual { callSuccess(result) }
+    }
+
+    open fun failed(e: Throwable) {
+        if (isCompleted) return
+        taskVirtual { callFailed(e) }
     }
 }
 
@@ -260,13 +259,13 @@ class HareCompleter<T>() : Completer<T>() {
     private val flag: AtomicBoolean = AtomicBoolean(false)
     override val isCompleted: Boolean get() = flag.get() || future.isDone
 
-    override fun complete(result: T) {
+    override fun success(result: T) {
         if (flag.getAndSet(true) || future.isDone) return
-        taskVirtual { future.complete(result) }
+        taskVirtual { callSuccess(result) }
     }
 
-    override fun completeError(e: Throwable) {
+    override fun failed(e: Throwable) {
         if (flag.getAndSet(true) || future.isDone) return
-        taskVirtual { future.completeError(e) }
+        taskVirtual { callFailed(e) }
     }
 }
