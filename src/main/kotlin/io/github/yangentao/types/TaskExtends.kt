@@ -5,11 +5,6 @@ package io.github.yangentao.types
 import io.github.yangentao.types.Tasks.service
 import java.util.concurrent.*
 
-@Suppress("Since15")
-val vtasks: ScheduledExecutorService = if (javaVersionInt >= 19) Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory()) else Executors.newScheduledThreadPool(4) {
-    DeamonThread(it)
-}
-
 fun <T> ExecutorService.call(task: Callable<T>): Future<T> {
     return service.submit(task)
 }

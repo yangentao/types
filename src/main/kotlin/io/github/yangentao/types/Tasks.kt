@@ -2,7 +2,10 @@ package io.github.yangentao.types
 
 import java.util.concurrent.*
 
-object Tasks : TaskPool(8)
+@Suppress("Since15")
+fun taskVirtual(task: Runnable) {
+    Thread.ofVirtual().start(task)
+}
 
 fun asyncTask(task: Runnable): Future<*> {
     return Tasks.submit(task)
@@ -20,8 +23,8 @@ fun <T> delayCall(millSeconds: Long, task: Callable<T>): ScheduledFuture<T> {
     return Tasks.service.schedule(task, millSeconds, TimeUnit.MILLISECONDS)
 }
 
-open class TaskPool(val corePoolSize: Int = 4) {
-    val service: ScheduledExecutorService = Executors.newScheduledThreadPool(corePoolSize) {
+object Tasks {
+    val service: ScheduledExecutorService = Executors.newScheduledThreadPool(4) {
         DeamonThread(it, "TaskPool")
     }
 
