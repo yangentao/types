@@ -2,6 +2,7 @@ package io.github.yangentao.types
 
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 enum class FutureState {
@@ -239,26 +240,42 @@ class HareFuture<T> : Future<T> {
 
 }
 
-class Completer<T>(private val sync: Boolean = false) {
+class Completer<T>() {
     private val comp: AtomicBoolean = AtomicBoolean(false)
     val future: HareFuture<T> = HareFuture()
     val isCompleted: Boolean get() = comp.get()
 
     fun complete(result: T) {
         if (comp.getAndSet(true)) error("Already Completed")
-        if (sync) {
-            future.complete(result)
-        } else {
-            taskVirtual { future.complete(result) }
-        }
+        taskVirtual { future.complete(result) }
     }
 
     fun completeError(e: Throwable) {
         if (comp.getAndSet(true)) error("Already Completed")
-        if (sync) {
-            future.completeError(e)
-        } else {
-            taskVirtual { future.completeError(e) }
+        taskVirtual { future.completeError(e) }
+    }
+}
+
+class AnyCompleter<T>(val size: Int) {
+    private val countDown: AtomicInteger = AtomicInteger(size)
+    val future: HareFuture<List<T>> = HareFuture()
+    val isCompleted: Boolean get() = countDown.get() <= 0
+    private val successList = ArrayList<T>()
+    private val failedList = ArrayList<Throwable>()
+
+    fun complete(result: T) {
+        if (countDown.getAndDecrement() <= 0) error("Already Completed")
+        successList.add(result)
+        if (countDown.get() <= 0) {
+            taskVirtual { future.complete(successList) }
+        }
+    }
+
+    fun completeError(e: Throwable) {
+        if (countDown.getAndDecrement() <= 0) error("Already Completed")
+        failedList.add(e)
+        if (countDown.get() <= 0) {
+            taskVirtual { future.complete(successList) }
         }
     }
 }
