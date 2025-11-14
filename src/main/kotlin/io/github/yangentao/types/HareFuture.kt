@@ -2,7 +2,6 @@ package io.github.yangentao.types
 
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 enum class FutureState {
@@ -80,6 +79,7 @@ class HareFuture<T> : Future<T> {
 
     fun onTimeout(millSeconds: Long, callback: Runnable): HareFuture<T> {
         if (isDone) return this
+        _timeoutFuture?.cancel(false)
         _timeoutFuture = delayTask(millSeconds) {
             if (!isDone) callback.run()
         }
@@ -91,7 +91,7 @@ class HareFuture<T> : Future<T> {
         _timeoutFuture = null
     }
 
-    internal fun complete(value: T) {
+    fun complete(value: T) {
         if (isDone) return
         cancelTimeout()
         this._result = value
@@ -108,7 +108,7 @@ class HareFuture<T> : Future<T> {
         }
     }
 
-    internal fun completeError(e: Throwable) {
+    fun completeError(e: Throwable) {
         if (isDone) return
         cancelTimeout()
         this._cause = e
@@ -219,6 +219,7 @@ class HareFuture<T> : Future<T> {
     val isSuccess: Boolean get() = _state.get() == FutureState.SUCCESS
 
     val isFailed: Boolean get() = _state.get() == FutureState.FAILED
+    val isRunning: Boolean get() = _state.get() == FutureState.RUNNING
 
     override fun isCancelled(): Boolean {
         return _state.get() == FutureState.CANCELLED
@@ -240,42 +241,32 @@ class HareFuture<T> : Future<T> {
 
 }
 
-class Completer<T>() {
-    private val comp: AtomicBoolean = AtomicBoolean(false)
+open class Completer<T> {
     val future: HareFuture<T> = HareFuture()
-    val isCompleted: Boolean get() = comp.get()
+    open val isCompleted: Boolean get() = future.isDone
 
-    fun complete(result: T) {
-        if (comp.getAndSet(true)) error("Already Completed")
+    open fun complete(result: T) {
+        if (isCompleted) return
         taskVirtual { future.complete(result) }
     }
 
-    fun completeError(e: Throwable) {
-        if (comp.getAndSet(true)) error("Already Completed")
+    open fun completeError(e: Throwable) {
+        if (isCompleted) return
         taskVirtual { future.completeError(e) }
     }
 }
 
-class AnyCompleter<T>(val size: Int) {
-    private val countDown: AtomicInteger = AtomicInteger(size)
-    val future: HareFuture<List<T>> = HareFuture()
-    val isCompleted: Boolean get() = countDown.get() <= 0
-    val successList = ArrayList<T>()
-    val failedList = ArrayList<Throwable>()
+class HareCompleter<T>() : Completer<T>() {
+    private val flag: AtomicBoolean = AtomicBoolean(false)
+    override val isCompleted: Boolean get() = flag.get() || future.isDone
 
-    fun complete(result: T) {
-        if (countDown.getAndDecrement() <= 0) error("Already Completed")
-        successList.add(result)
-        if (countDown.get() <= 0) {
-            taskVirtual { future.complete(successList) }
-        }
+    override fun complete(result: T) {
+        if (flag.getAndSet(true) || future.isDone) return
+        taskVirtual { future.complete(result) }
     }
 
-    fun completeError(e: Throwable) {
-        if (countDown.getAndDecrement() <= 0) error("Already Completed")
-        failedList.add(e)
-        if (countDown.get() <= 0) {
-            taskVirtual { future.complete(successList) }
-        }
+    override fun completeError(e: Throwable) {
+        if (flag.getAndSet(true) || future.isDone) return
+        taskVirtual { future.completeError(e) }
     }
 }
