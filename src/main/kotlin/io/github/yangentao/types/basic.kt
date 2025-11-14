@@ -9,10 +9,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
-import java.util.concurrent.Callable
-import java.util.concurrent.Future
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
@@ -24,8 +20,6 @@ val javaVersionInt: Int = System.getProperty("java.specification.version")?.toIn
 val Thread.tid: Long get() = if (javaVersionInt >= 19) this.threadId() else this.id
 
 val Thread.isMain: Boolean get() = this.tid == 1L
-
-
 
 val Throwable.rootError: Throwable
     get() {
@@ -40,6 +34,13 @@ fun printX(vararg vs: Any?) {
 }
 
 data class LabelValue<T : Any>(val label: String, val value: T)
+
+// [minValue, maxValue]
+fun <T : Comparable<T>> T.clamp(minValue: T, maxValue: T): T {
+    if (this < minValue) return minValue
+    if (this > maxValue) return maxValue
+    return this
+}
 
 inline fun <R> safe(block: () -> R): R? {
     try {
