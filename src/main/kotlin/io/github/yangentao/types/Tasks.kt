@@ -15,12 +15,12 @@ fun asyncTask(task: Runnable): Future<*> {
     return Tasks.submit(task)
 }
 
-fun <T> asyncCall(millSeconds: Long, task: Callable<T>): Future<T> {
-    return Tasks.service.submit(task)
-}
-
 fun delayTask(millSeconds: Long, task: Runnable): ScheduledFuture<*> {
     return Tasks.delayMill(millSeconds, task)
+}
+
+fun <T> asyncCall(task: Callable<T>): Future<T> {
+    return Tasks.call(task)
 }
 
 fun <T> delayCall(millSeconds: Long, task: Callable<T>): ScheduledFuture<T> {
