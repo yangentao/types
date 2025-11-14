@@ -260,8 +260,8 @@ class AnyCompleter<T>(val size: Int) {
     private val countDown: AtomicInteger = AtomicInteger(size)
     val future: HareFuture<List<T>> = HareFuture()
     val isCompleted: Boolean get() = countDown.get() <= 0
-    private val successList = ArrayList<T>()
-    private val failedList = ArrayList<Throwable>()
+    val successList = ArrayList<T>()
+    val failedList = ArrayList<Throwable>()
 
     fun complete(result: T) {
         if (countDown.getAndDecrement() <= 0) error("Already Completed")
