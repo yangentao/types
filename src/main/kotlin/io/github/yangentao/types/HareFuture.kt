@@ -94,7 +94,7 @@ class HareFuture<T> : Future<T> {
         _timeoutFuture = null
     }
 
-    internal fun complete(value: T) {
+    fun complete(value: T) {
         if (isDone) return
         cancelTimeout()
         this._result = value
@@ -111,7 +111,7 @@ class HareFuture<T> : Future<T> {
         }
     }
 
-    internal fun completeError(e: Throwable) {
+    fun completeError(e: Throwable) {
         if (isDone) return
         cancelTimeout()
         this._cause = e
@@ -229,29 +229,17 @@ class HareFuture<T> : Future<T> {
 
 }
 
-open class AbsCompleter<T> {
+open class Completer<T> {
     val future: HareFuture<T> = HareFuture()
     open val isCompleted: Boolean get() = future.isDone
-
-    protected fun callSuccess(result: T) {
-        future.complete(result)
-    }
-
-    protected fun callFailed(e: Throwable) {
-        future.completeError(e)
-    }
-}
-
-open class Completer<T> : AbsCompleter<T>() {
-
     open fun success(result: T) {
         if (isCompleted) return
-        taskVirtual { callSuccess(result) }
+        taskVirtual { future.complete(result) }
     }
 
     open fun failed(e: Throwable) {
         if (isCompleted) return
-        taskVirtual { callFailed(e) }
+        taskVirtual { future.completeError(e) }
     }
 }
 
@@ -261,11 +249,11 @@ class HareCompleter<T>() : Completer<T>() {
 
     override fun success(result: T) {
         if (flag.getAndSet(true) || future.isDone) return
-        taskVirtual { callSuccess(result) }
+        taskVirtual { future.complete(result) }
     }
 
     override fun failed(e: Throwable) {
         if (flag.getAndSet(true) || future.isDone) return
-        taskVirtual { callFailed(e) }
+        taskVirtual { future.completeError(e) }
     }
 }
